@@ -26,8 +26,6 @@ services:
       - ./.env
       - ./.env.credentials.local
       - ./.env.local
-      - ./.env.${WEBSITE_CONTEXT}
-      - ./.env.${WEBSITE_CONTEXT}.local
     environment:
       - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
     volumes:
@@ -41,8 +39,6 @@ services:
       - ./.env
       - ./.env.credentials.local
       - ./.env.local
-      - ./.env.${WEBSITE_CONTEXT}
-      - ./.env.${WEBSITE_CONTEXT}.local
     environment:
       - FRAPPE_PY=erpnext-python
       - FRAPPE_PY_PORT=8000
