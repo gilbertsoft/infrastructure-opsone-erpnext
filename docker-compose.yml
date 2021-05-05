@@ -1,0 +1,163 @@
+version: '3'
+
+services:
+  redis-cache:
+    image: redis:latest
+    restart: ${RESTART}
+    volumes:
+      - redis-cache-vol:/data
+
+  redis-queue:
+    image: redis:latest
+    restart: ${RESTART}
+    volumes:
+      - redis-queue-vol:/data
+
+  redis-socketio:
+    image: redis:latest
+    restart: ${RESTART}
+    volumes:
+      - redis-socketio-vol:/data
+
+  mariadb:
+    image: mariadb:10.3
+    restart: ${RESTART}
+    env_file:
+      - ./.env
+      - ./.env.credentials.local
+      - ./.env.local
+      - ./.env.${WEBSITE_CONTEXT}
+      - ./.env.${WEBSITE_CONTEXT}.local
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+    volumes:
+      - ./frappe-mariadb.cnf:/etc/mysql/conf.d/frappe.cnf
+      - mariadb-vol:/var/lib/mysql
+
+  erpnext-nginx:
+    image: frappe/erpnext-nginx:${ERPNEXT_VERSION}
+    restart: ${RESTART}
+    env_file:
+      - ./.env
+      - ./.env.credentials.local
+      - ./.env.local
+      - ./.env.${WEBSITE_CONTEXT}
+      - ./.env.${WEBSITE_CONTEXT}.local
+    environment:
+      - FRAPPE_PY=erpnext-python
+      - FRAPPE_PY_PORT=8000
+      - FRAPPE_SOCKETIO=frappe-socketio
+      - SOCKETIO_PORT=9000
+      - VIRTUAL_HOST=${WEBSITE_SERVER_NAME}
+    depends_on:
+      - erpnext-python
+      - frappe-socketio
+      - frappe-worker-default
+      - frappe-worker-long
+      - frappe-worker-short
+    links:
+      - erpnext-python
+      - frappe-socketio
+      - frappe-worker-default
+      - frappe-worker-long
+      - frappe-worker-short
+    volumes:
+      - sites-vol:/var/www/html/sites:rw
+      - assets-vol:/assets:rw
+    ports:
+      - "127.0.0.1:${ERPNEXT_PORT}:80"
+
+  erpnext-python:
+    image: frappe/erpnext-worker:${ERPNEXT_VERSION}
+    restart: ${RESTART}
+    environment:
+      - MARIADB_HOST=mariadb
+      - REDIS_CACHE=redis-cache:6379
+      - REDIS_QUEUE=redis-queue:6379
+      - REDIS_SOCKETIO=redis-socketio:6379
+      - SOCKETIO_PORT=9000
+      - AUTO_MIGRATE=1
+    volumes:
+      - sites-vol:/home/frappe/frappe-bench/sites:rw
+      - assets-vol:/home/frappe/frappe-bench/sites/assets:rw
+      - logs-vol:/home/frappe/frappe-bench/logs:rw
+
+  frappe-socketio:
+    image: frappe/frappe-socketio:${FRAPPE_VERSION}
+    restart: ${RESTART}
+    depends_on:
+      - redis-socketio
+    links:
+      - redis-socketio
+    volumes:
+      - sites-vol:/home/frappe/frappe-bench/sites:rw
+      - logs-vol:/home/frappe/frappe-bench/logs:rw
+
+  frappe-worker-default:
+    image: frappe/erpnext-worker:${ERPNEXT_VERSION}
+    restart: ${RESTART}
+    command: worker
+    depends_on:
+      - redis-queue
+      - redis-cache
+    links:
+      - redis-queue
+      - redis-cache
+    volumes:
+      - sites-vol:/home/frappe/frappe-bench/sites:rw
+      - logs-vol:/home/frappe/frappe-bench/logs:rw
+
+  frappe-worker-short:
+    image: frappe/erpnext-worker:${ERPNEXT_VERSION}
+    restart: ${RESTART}
+    command: worker
+    environment:
+      - WORKER_TYPE=short
+    depends_on:
+      - redis-queue
+      - redis-cache
+    links:
+      - redis-queue
+      - redis-cache
+    volumes:
+      - sites-vol:/home/frappe/frappe-bench/sites:rw
+      - logs-vol:/home/frappe/frappe-bench/logs:rw
+
+  frappe-worker-long:
+    image: frappe/erpnext-worker:${ERPNEXT_VERSION}
+    restart: ${RESTART}
+    command: worker
+    environment:
+      - WORKER_TYPE=long
+    depends_on:
+      - redis-queue
+      - redis-cache
+    links:
+      - redis-queue
+      - redis-cache
+    volumes:
+      - sites-vol:/home/frappe/frappe-bench/sites:rw
+      - logs-vol:/home/frappe/frappe-bench/logs:rw
+
+  frappe-schedule:
+    image: frappe/erpnext-worker:${ERPNEXT_VERSION}
+    restart: ${RESTART}
+    command: schedule
+    depends_on:
+      - redis-queue
+      - redis-cache
+    links:
+      - redis-queue
+      - redis-cache
+    volumes:
+      - sites-vol:/home/frappe/frappe-bench/sites:rw
+      - logs-vol:/home/frappe/frappe-bench/logs:rw
+
+volumes:
+  mariadb-vol:
+  redis-cache-vol:
+  redis-queue-vol:
+  redis-socketio-vol:
+  assets-vol:
+  sites-vol:
+  logs-vol:
